@@ -25,7 +25,7 @@ public with sharing class ApplicantCustomController {
         }
     }
     
-    private void getApplicant(String id){
+    public Applicant__c getApplicant(String id){
         this.applicant = [SELECT FirstName__c, 
                           LastName__c, 
                           Address__c, 
@@ -36,17 +36,19 @@ public with sharing class ApplicantCustomController {
                           Loan_Amount__c,
                           Status__c,
                           Age__c FROM Applicant__c WHERE id = :id];
+        return this.applicant;
     }
     
-    private void getGuarantors(String applicantId){
+    public List<Guarantor__c> getGuarantors(String applicantId){
         this.guarantors = [SELECT Name__c, 
                           Ownership__c, 
                           SSIN_FIEN__c, 
                           Date_of_birth__c
                           FROM Guarantor__c WHERE applicant__c = :applicantId];
+        return this.guarantors;
     }
     
-    private void getAssetDetails(String applicantId){
+    public List<Asset_Detail__c> getAssetDetails(String applicantId){
         this.assets = [SELECT Asset_Price__c, 
                           Condition__c, 
                           Make__c, 
@@ -54,8 +56,9 @@ public with sharing class ApplicantCustomController {
                           Serial__c,
                           Year__c
                           FROM Asset_Detail__c WHERE applicant__c = :applicantId];
+        return this.assets;
     }
-    
+
     private void getDocuments(String applicantId){
        this.documents= [SELECT Type__c, 
                           Name__c, 
@@ -67,6 +70,7 @@ public with sharing class ApplicantCustomController {
         UPSERT this.applicant;
         Pagereference pr = new Pagereference('/apex/ApplicantForm');
         pr.getParameters().put('id', this.applicant.id);
+        pr.getParameters().put('tab', 'applicant');
         pr.setRedirect(true);
         return pr;
     }
@@ -74,9 +78,9 @@ public with sharing class ApplicantCustomController {
     public PageReference saveGuarantor(){
         try{
             Decimal totalOwnership = this.guarantor.Ownership__c;
-        for (Guarantor__c guarantor : this.guarantors) {
-            totalOwnership += guarantor.Ownership__c;
-        }
+            for (Guarantor__c g : this.guarantors == null ? new List<Guarantor__c>() : this.guarantors) {
+                totalOwnership += g.Ownership__c;
+            }
 
         if(totalOwnership > 100){
              NoAccessException na = new NoAccessException();
@@ -86,22 +90,36 @@ public with sharing class ApplicantCustomController {
         this.guarantor.Applicant__c = this.applicant.id;
         UPSERT this.guarantor;
         this.getGuarantors(this.applicant.id);
+        Pagereference pr = new Pagereference('/apex/ApplicantForm');
+        pr.getParameters().put('id', this.applicant.id);
+        pr.getParameters().put('tab', 'guarantors');
+        pr.getParameters().put('guarantorId', this.guarantor.id);
+        pr.setRedirect(true);
         this.guarantor = new Guarantor__c();
-        return null;
+        return pr;
         }
         catch(Exception e){
             ApexPages.Message message = new Apexpages.Message(Apexpages.Severity.Error, e.getMessage());
             Apexpages.addMessage(message);
-            return null;
+            Pagereference pr = new Pagereference('/apex/ApplicantForm');
+            pr.getParameters().put('id', this.applicant.id);
+            pr.getParameters().put('tab', 'guarantors');
+            pr.setRedirect(false);
+            return pr;
         }
         
     }
     public PageReference saveAssetDetail(){
         this.asset.Applicant__c = this.applicant.id;
         upsert this.asset;
+        Pagereference pr = new Pagereference('/apex/ApplicantForm');
+        pr.getParameters().put('id', this.applicant.id);
+        pr.getParameters().put('tab', 'asset_details');
+        pr.getParameters().put('assetDetailId', this.asset.id);
+        pr.setRedirect(true);
         this.asset = new Asset_Detail__c();
         this.getAssetDetails(this.applicant.id);
-        return null;
+        return pr;
     }
     public PageReference saveDocument(){
         try{
@@ -111,8 +129,7 @@ public with sharing class ApplicantCustomController {
             v.ContentLocation = 's';
             v.PathOnClient='/';
             insert v;
-            this.document.File_Name__c= v.id;
-            system.debug(this.fileName);
+
             this.document.Applicant__c = this.applicant.id;
             UPSERT this.document;
             this.document = new Document__c();
@@ -128,7 +145,11 @@ public with sharing class ApplicantCustomController {
     public PageReference submit(){
         this.applicant.Status__c = 'Submitted';
         UPSERT this.applicant;
-        return null;
+        Pagereference pr = new Pagereference('/apex/ApplicantForm');
+        pr.getParameters().put('id', this.applicant.id);
+        pr.getParameters().put('tab', 'submit');
+        pr.setRedirect(true);
+        return pr;
     }
     
     
